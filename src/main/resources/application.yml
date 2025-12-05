@@ -4,7 +4,7 @@ spring:
 
   datasource:
     # 아직 RDS 엔드포인트(주소)가 안 나왔으니 일단 비워둡니다. 나중에 채울 겁니다.
-    url: jdbc:mysql://[RDS엔드포인트]:3306/smart_sourcing_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://database-1.cnwayga6k6j6.us-east-1.rds.amazonaws.com:3306/smart_sourcing_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: admin
     password: wjddnjswns  # 아까 설정한 비번
     driver-class-name: com.mysql.cj.jdbc.Driver
