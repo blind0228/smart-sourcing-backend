@@ -1,88 +1,140 @@
 import boto3
+import requests
 import json
-import time
-import pymysql
+import statistics
+import logging
+import sys
 from botocore.exceptions import ClientError
 
-# --- [설정 정보] ---
-# 1. 아까 복사한 SQS URL 붙여넣기
-SQS_QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/730335221432/smart-sourcing-queue"
+# 1. 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger()
 
-# 2. RDS 정보 입력 (Spring Boot랑 똑같이)
-DB_HOST = "database-1.cnwayga6k6j6.us-east-1.rds.amazonaws.com"
-DB_USER = "admin"
-DB_PASSWORD = "wjddnjswns"
-DB_NAME = "smart_sourcing_db"
-
-# 3. AWS 클라이언트 연결 (Learner Lab이라서 권한은 자동 처리됨)
+# AWS 설정
 sqs = boto3.client('sqs', region_name='us-east-1')
-translate = boto3.client('translate', region_name='us-east-1')
+QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/730335221432/smart-sourcing-queue"
 
-def get_db_connection():
-    return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)
+# 네이버 API 설정
+NAVER_CLIENT_ID = "I1uLlyo_ne_BHszaVd3R"
+NAVER_CLIENT_SECRET = "swMHAs3qpq"
 
-def process_message(message_body):
-    print(f"🕷️ 작업 시작: {message_body}")
-    data = json.loads(message_body)
-    keyword = data.get('keyword', 'default')
+# Spring Boot 서버 주소
+SPRING_BOOT_API_URL = "http://localhost:8080/api/market/analysis"
 
-    # 1. (가짜) 크롤링
-    print(f"   Searching 1688 for: {keyword}...")
-    time.sleep(1) 
-    
-    # 2. 번역 (AWS Translate 대신 임시 처리)
-    # AWS Academy 권한 문제로 Translate를 사용할 수 없으므로,
-    # 단순히 'Translated_' 라는 말을 앞에 붙여서 테스트합니다.
-    original_text = f"{keyword} 的优质产品"
-    price_cny = 100
-    
-    print("   Translating (Simulated)...")
-    # result = translate.translate_text(...)  <-- 이 부분이 에러 원인이라 주석 처리
-    translated_text = f"한국어로 번역된_{keyword}_상품" # 가짜 번역 결과
-    
-    # 3. DB 저장
-    print(f"   Saving to DB: {translated_text}")
-    
+def get_naver_shopping_data(keyword):
+    if keyword:
+        keyword = str(keyword).strip()
+
+    if not keyword:
+        return []
+
+    url = "https://openapi.naver.com/v1/search/shop.json"
+    headers = {
+        "X-Naver-Client-Id": NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
+    }
+    params = {"query": keyword, "display": 100, "sort": "sim"}
+
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            # 상태를 'COMPLETED'로 저장
-            sql = "INSERT INTO products (name, price, status) VALUES (%s, %s, %s)"
-            cursor.execute(sql, (translated_text, price_cny * 190, 'COMPLETED'))
-        conn.commit()
-        conn.close()
-        print("✅ DB 저장 완료! 작업 끝!")
-    except Exception as db_err:
-        print(f"❌ DB 저장 실패: {db_err}")
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        return response.json().get('items', [])
+    except requests.exceptions.RequestException as e:
+        logger.error(f"네이버 API 호출 중 에러 발생: {e}")
+        return []
 
-def run_worker():
-    print("🚀 Python Worker 가동! SQS 감시 중...")
+def analyze_market(items):
+    if not items:
+        return None
+
+    prices = [int(item['lprice']) for item in items]
+    avg_price = statistics.mean(prices)
+    min_price = min(prices)
+    top_title = items[0]['title'].replace('<b>', '').replace('</b>', '')
+
+    return {
+        "keyword": items[0].get('category1', 'Unknown'),
+        "average_price": int(avg_price),
+        "lowest_price": min_price,
+        "sample_count": len(items),
+        "top_item_name": top_title
+    }
+
+def send_to_backend(data):
+    try:
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(SPRING_BOOT_API_URL, json=data, headers=headers)
+
+        if response.status_code == 200 or response.status_code == 201:
+            logger.info(f"🚀 Spring Boot로 데이터 전송 성공! [Status: {response.status_code}]")
+        else:
+            logger.error(f"❌ 데이터 전송 실패. 서버 응답: {response.status_code} - {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Spring Boot 서버 연결 실패: {e}")
+
+def process_messages():
+    logger.info(f"🚀 워커(Worker)가 시작되었습니다. 대기열 감시 중... [{QUEUE_URL}]")
+
     while True:
         try:
-            # SQS에서 메시지 가져오기 (Long Polling)
+            # 1. SQS 메시지 수신 (Long Polling)
             response = sqs.receive_message(
-                QueueUrl=SQS_QUEUE_URL,
+                QueueUrl=QUEUE_URL,
                 MaxNumberOfMessages=1,
-                WaitTimeSeconds=10
+                WaitTimeSeconds=20
             )
 
             if 'Messages' in response:
-                for msg in response['Messages']:
-                    receipt_handle = msg['ReceiptHandle']
-                    body = msg['Body']
-                    
-                    try:
-                        process_message(body)
-                        # 성공하면 큐에서 삭제
-                        sqs.delete_message(QueueUrl=SQS_QUEUE_URL, ReceiptHandle=receipt_handle)
-                    except Exception as e:
-                        print(f"❌ 처리 실패: {e}")
-            else:
-                print(".", end="", flush=True) # 대기 중 표시
+                message = response['Messages'][0]
+                receipt_handle = message['ReceiptHandle']
+                raw_body = message['Body']
 
+                # 키워드 파싱 및 세탁
+                keyword = "알수없음"
+                try:
+                    body = json.loads(raw_body)
+                    if isinstance(body, dict):
+                        keyword = body.get('keyword', raw_body)
+                    else:
+                        keyword = str(body)
+                except:
+                    keyword = raw_body
+
+                keyword = str(keyword).strip()
+                logger.info(f"📥 메시지 수신됨! 추출된 키워드: [{keyword}]")
+
+                # 데이터 수집 및 분석
+                items = get_naver_shopping_data(keyword)
+
+                if items:
+                    result = analyze_market(items)
+                    result['search_keyword'] = keyword
+
+                    logger.info(f"✅ 분석 완료: {json.dumps(result, ensure_ascii=False)}")
+
+                    # Spring Boot로 전송
+                    send_to_backend(result)
+                else:
+                    logger.warning(f"⚠️ '{keyword}'에 대한 검색 결과가 없습니다.")
+
+                # 메시지 삭제
+                sqs.delete_message(QueueUrl=QUEUE_URL, ReceiptHandle=receipt_handle)
+                logger.info("🗑️ 메시지 삭제 완료 (처리 끝)\n")
+
+            else:
+                pass
+
+        except ClientError as e:
+            logger.error(f"AWS SQS 에러 발생: {e}")
         except Exception as e:
-            print(f"Error: {e}")
-            time.sleep(5)
+            logger.error(f"알 수 없는 에러 발생: {e}")
 
 if __name__ == "__main__":
-    run_worker()
+    process_messages()

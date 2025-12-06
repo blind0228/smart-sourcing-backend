@@ -32,6 +32,8 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+// AWS SQS 사용을 위한 라이브러리 (Spring Boot 3.x 호환)
+	implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.0'
 }
 
 tasks.named('test') {
