@@ -6,7 +6,7 @@ import com.smart.backend.repository.MarketAnalysisRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import java.util.List;
 @RestController
 @RequestMapping("/api/market")
 public class MarketAnalysisController {
@@ -34,5 +34,13 @@ public class MarketAnalysisController {
         System.out.println("✅ DB 저장 완료: " + entity.getId() + "번 데이터");
 
         return ResponseEntity.ok("Saved Successfully");
+    }
+
+    // 2. [추가됨] 전체 조회 API 🌟
+    @GetMapping("/list")
+    public ResponseEntity<List<MarketAnalysis>> getAllAnalysis() {
+        // DB에 있는 모든 데이터를 최신순(ID 역순)으로 가져오기
+        List<MarketAnalysis> dataList = repository.findAll();
+        return ResponseEntity.ok(dataList);
     }
 }
