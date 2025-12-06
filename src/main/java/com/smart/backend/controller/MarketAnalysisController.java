@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 @RestController
 @RequestMapping("/api/market")
+@CrossOrigin(origins = "*")
 public class MarketAnalysisController {
 
     @Autowired
