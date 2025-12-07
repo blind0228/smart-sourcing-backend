@@ -25,7 +25,7 @@ sqs_client = boto3.client('sqs', region_name='us-east-1')
 
 NAVER_CLIENT_ID = "I1uLlyo_ne_BHszaVd3R"
 NAVER_CLIENT_SECRET = "swMHAs3qpq"
-SPRING_BOOT_API = "http://http://107.23.133.221:8080/"
+SPRING_BOOT_API = "http://107.23.133.221:8080"
 
 
 # ---------------------------------------------------------
@@ -155,7 +155,7 @@ def analyze_market(items, keyword, total_results, avg_search_ratio):
 # ---------------------------------------------------------
 def send_ranking_to_backend(data):
     try:
-        url = f"{SPRING_BOOT_API}/api/market/ranking/receive"
+        url = f"{SPRING_BOOT_API}/market/ranking/receive"
         requests.post(url, json=data).raise_for_status()
         logger.info("🚀 랭킹 전송 성공")
     except:
@@ -163,7 +163,7 @@ def send_ranking_to_backend(data):
 
 def send_analysis_to_backend(data):
     try:
-        url = f"{SPRING_BOOT_API}/api/market/analysis"
+        url = f"{SPRING_BOOT_API}/market/analysis"
         requests.post(url, json=data).raise_for_status()
         logger.info("🚀 분석 전송 성공")
     except:
