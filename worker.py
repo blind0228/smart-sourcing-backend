@@ -5,6 +5,7 @@ import statistics
 import logging
 import sys
 from datetime import datetime, timedelta
+import os
 
 try:
     import boto3
@@ -25,7 +26,7 @@ sqs_client = boto3.client('sqs', region_name='us-east-1')
 
 NAVER_CLIENT_ID = "I1uLlyo_ne_BHszaVd3R"
 NAVER_CLIENT_SECRET = "swMHAs3qpq"
-SPRING_BOOT_API = "http://107.23.133.221:8080"
+SPRING_BOOT_API = os.getenv("SPRING_BOOT_API_URL", "http://localhost:8080")
 
 
 # ---------------------------------------------------------
