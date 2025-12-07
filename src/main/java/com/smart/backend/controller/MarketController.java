@@ -1,4 +1,4 @@
-// com.smart.backend.controller.MarketController.java (전체 코드)
+// com.smart.backend.controller.MarketController.java (수정된 코드)
 
 package com.smart.backend.controller;
 
@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors; // Collectors import 추가
 
 @RestController
 @RequestMapping("/market")
@@ -21,16 +22,18 @@ public class MarketController {
     private final MarketService marketService;
     private final SourcingService sourcingService;
 
-    // 1. GET /api/market/list (React 우측 상세 분석 표)
+    // 1. GET /market/list (파라미터 없음, 수정 불필요)
     @GetMapping("/list")
     public ResponseEntity<List<MarketAnalysisResponse>> getAnalysisList() {
         List<MarketAnalysisResponse> list = marketService.findAllAnalysis();
         return ResponseEntity.ok(list);
     }
 
-    // 2. POST /api/sourcing/request (React 요청 -> SQS 전송)
+    // 2. POST /market/sourcing/request (React 요청 -> SQS 전송)
+    // POST 요청 시 바디가 비어있으면 400이 발생하기 쉬움. @RequestParam에 required=true 기본값 사용
     @PostMapping("/sourcing/request")
     public ResponseEntity<Void> requestSourcing(@RequestParam String keyword) {
+        // 이미 null/empty 체크가 있으므로 이 부분은 400을 직접 반환합니다.
         if (keyword == null || keyword.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
@@ -38,56 +41,50 @@ public class MarketController {
         return ResponseEntity.accepted().build();
     }
 
-    // 3. POST /api/market/analysis (Python Worker 분석 결과 수신)
-    @PostMapping("/analysis")
-    public ResponseEntity<Void> receiveAnalysisResult(@RequestBody MarketAnalysis analysisResult) {
-        if (analysisResult.getSearchKeyword() == null) {
-            return ResponseEntity.badRequest().build();
-        }
-        marketService.saveAnalysisResult(analysisResult);
-        return ResponseEntity.ok().build();
-    }
+    // 3. POST /market/analysis (Python Worker 분석 결과 수신)
+    // ... (수정 불필요)
 
-    // 4. POST /api/market/ranking/receive (Python Worker 랭킹 결과 수신 -> DB 저장)
-    @PostMapping("/ranking/receive")
-    public ResponseEntity<Void> receiveRankingResult(@RequestBody List<RankingItem> rankingList) {
-        if (rankingList == null || rankingList.isEmpty()) {
-            return ResponseEntity.badRequest().build();
-        }
-        marketService.saveNaverRanking(rankingList);
-        return ResponseEntity.ok().build();
-    }
+    // 4. POST /market/ranking/receive (Python Worker 랭킹 결과 수신 -> DB 저장)
+    // ... (수정 불필요)
 
-    // 5. GET /api/market/ranking (React 좌측 네이버 랭킹 표 - DB 조회)
+    // 5. GET /market/ranking (React 좌측 네이버 랭킹 표 - DB 조회)
+    // 파라미터 없음, 수정 불필요
     @GetMapping("/ranking")
     public ResponseEntity<List<RankingItem>> getRanking() {
         List<RankingItem> ranking = marketService.getNaverShoppingRanking();
         return ResponseEntity.ok(ranking);
     }
 
-    // 6. GET /api/market/ranking/category?categoryLabel=패션의류
+    // 6. GET /market/ranking/category?categoryLabel=패션의류
+    // 🔥 필수 파라미터를 옵션으로 변경 (400 오류 방지)
+    // @RequestParam(required = false)를 사용하여 파라미터가 없어도 400 오류가 발생하지 않도록 합니다.
     @GetMapping("/ranking/category")
     public ResponseEntity<List<RankingItem>> getRankingByCategory(
-            @RequestParam String categoryLabel
+            @RequestParam(required = false) String categoryLabel // ⭐ 변경: required = false 추가
     ) {
-        // DB에서 전체 랭킹 가져오기 (기존 서비스 재사용)
+        // categoryLabel이 null이거나 비어있으면 전체 랭킹을 반환
+        if (categoryLabel == null || categoryLabel.trim().isEmpty()) {
+            // 400 Bad Request 대신, 전체 랭킹을 반환하거나 빈 리스트를 반환하여 오류를 피함
+            List<RankingItem> allRanking = marketService.getNaverShoppingRanking();
+            return ResponseEntity.ok(allRanking != null ? allRanking : List.of());
+        }
+
         List<RankingItem> allRanking = marketService.getNaverShoppingRanking();
 
         if (allRanking == null || allRanking.isEmpty()) {
             return ResponseEntity.ok(List.of());
         }
 
-        String prefix = "[" + categoryLabel + "]";  // 예: "[패션의류]"
+        String prefix = "[" + categoryLabel.trim() + "]";
 
         // keyword가 "[카테고리]"로 시작하는 것만 필터링해서 TOP 10 반환
         List<RankingItem> filtered = allRanking.stream()
                 .filter(item -> item.getKeyword() != null && item.getKeyword().startsWith(prefix))
-                // 필요하면 정렬 기준 변경 가능 (지금은 rank 기준 오름차순)
                 .sorted(java.util.Comparator.comparingInt(RankingItem::getRank))
                 .limit(10)
                 .toList();
 
-        // 카테고리 내에서 1위~10위로 다시 랭크 매기고 싶으면 아래처럼 재설정
+        // 카테고리 내에서 1위~10위로 다시 랭크 매김
         for (int i = 0; i < filtered.size(); i++) {
             filtered.get(i).setRank(i + 1);
         }
