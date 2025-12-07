@@ -1,6 +1,6 @@
 spring:
   application:
-    name: ocean-backend
+    name: smart-backend
 
   # 1. 데이터베이스 설정 (기존 내용 유지)
   datasource:
@@ -21,6 +21,7 @@ spring:
     aws:
       region:
         static: us-east-1
+      # 👇 유효한 AWS 자격 증명을 직접 추가하는 섹션
       sqs:
         # SQS 대기열 주소
         endpoint: https://sqs.us-east-1.amazonaws.com/730335221432/smart-sourcing-queue

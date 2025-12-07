@@ -1,35 +1,29 @@
 package com.smart.backend.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 import java.time.LocalDateTime;
 
+// ... (imports)
 @Entity
-@Getter @Setter
+@Getter
+@Setter
 @NoArgsConstructor
-@Table(name = "market_analysis") // DB에 생성될 테이블 이름
+@AllArgsConstructor
+@Table(name = "market_analysis")
 public class MarketAnalysis {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    private String searchKeyword; // 검색어 (예: 손난로)
-    private String category;      // 카테고리
-
-    private int averagePrice;     // 평균가
-    private int lowestPrice;      // 최저가
-    private int sampleCount;      // 샘플 개수 (예: 100개)
-
-    @Column(length = 500)         // 상품명이 길 수도 있으니 넉넉하게
-    private String topItemName;   // 1등 상품명
-
-    private LocalDateTime createdAt; // 생성 시간
-
-    @PrePersist
-    public void prePersist() {
-        this.createdAt = LocalDateTime.now();
-    }
+    @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+    @Column(nullable = false) private String searchKeyword;
+    private String category; private int averagePrice; private int lowestPrice;
+    @Column(length = 500) private String topItemName; private int sampleCount;
+    // 고도화 및 통합 지표
+    private int totalListings; private String competitionLevel;
+    private int searchVolumeRatio; private String marketAttractiveness;
+    private int sourcingScore; // ⬅️ 통합 점수
+    @Column(updatable = false) private LocalDateTime analysisDate = LocalDateTime.now();
 }
