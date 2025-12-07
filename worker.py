@@ -25,7 +25,7 @@ sqs_client = boto3.client('sqs', region_name='us-east-1')
 
 NAVER_CLIENT_ID = "I1uLlyo_ne_BHszaVd3R"
 NAVER_CLIENT_SECRET = "swMHAs3qpq"
-SPRING_BOOT_API = "http://http://54.152.105.176:8080/"
+SPRING_BOOT_API = "http://http://107.23.133.221:8080/"
 
 
 # ---------------------------------------------------------
