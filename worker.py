@@ -198,11 +198,12 @@ def send_analysis_to_backend(data):
     url = f"{SPRING_BOOT_API}/market/analysis"
     try:
         logger.info(f"📤 백엔드로 전송 시도: {url}")
-        response = requests.post(url, json=data, timeout=5)
-        response.raise_for_status()
-        logger.info("🚀 분석 결과 저장 성공 - status=%s", response.status_code)
+        # ⭐ 이 부분에 verify=False 옵션을 추가합니다.
+        res = requests.post(url, json=data, timeout=5, verify=False)
+        res.raise_for_status()
+        logger.info("🚀 분석 결과 저장 성공!")
     except Exception as e:
-        logger.error(f"❌ 분석 결과 전송 실패: {e}")
+        logger.error(f"❌ 전송 실패: {e}")
 
 
 # =========================================================
