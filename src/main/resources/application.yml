@@ -8,6 +8,10 @@ spring:
     username: admin
     password: wjddnjswns
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
