@@ -6,6 +6,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 import os
+import warnings # ⭐ 경고를 제어하기 위해 추가
 
 # ---------------------------------------------------------
 # 🛠️ 라이브러리 체크
@@ -188,7 +189,8 @@ def send_ranking_to_backend(data):
     url = f"{SPRING_BOOT_API}/market/ranking/receive"
     try:
         logger.info("📤 랭킹 전송 시도 - URL=%s, 항목=%d", url, len(data))
-        response = requests.post(url, json=data, timeout=5)
+        # ⚠️ (추가) 랭킹 전송 시에도 HTTPS 환경이라면 verify=False 추가를 권장합니다.
+        response = requests.post(url, json=data, timeout=5, verify=False)
         response.raise_for_status()
         logger.info("✅ 랭킹 데이터 전송 완료 - status=%s", response.status_code)
     except Exception as e:
@@ -198,7 +200,7 @@ def send_analysis_to_backend(data):
     url = f"{SPRING_BOOT_API}/market/analysis"
     try:
         logger.info(f"📤 백엔드로 전송 시도: {url}")
-        # ⭐ 이 부분에 verify=False 옵션을 추가합니다.
+        # ⭐ 최종 수정: SSL 경고 무시 옵션 (verify=False) 유지
         res = requests.post(url, json=data, timeout=5, verify=False)
         res.raise_for_status()
         logger.info("🚀 분석 결과 저장 성공!")
@@ -210,6 +212,17 @@ def send_analysis_to_backend(data):
 # 🚀 메인 실행 루프
 # =========================================================
 if __name__ == "__main__":
+
+    # ⭐⭐ 발표를 위해 InsecureRequestWarning 숨기기 ⭐⭐
+    try:
+        # urllib3 경고를 필터링하기 위해 requests.packages를 통해 import
+        from requests.packages.urllib3.exceptions import InsecureRequestWarning
+        warnings.filterwarnings("ignore", category=InsecureRequestWarning)
+    except ImportError:
+        # requests 2.x 버전에서는 requests.packages를 사용합니다.
+        pass
+    # -------------------------------------------------
+
     print("\n" + "="*60)
     print("   🚀 SMART SOURCING WORKER (DOCKER/AWS)")
     print(f"   📡 Target Backend: {SPRING_BOOT_API}")
