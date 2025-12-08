@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.stream.Collectors; // Collectors import 추가
 
 @RestController
-@RequestMapping("/market")
+@RequestMapping({"/market", "/api/market"})
 @RequiredArgsConstructor
 public class MarketController {
 
