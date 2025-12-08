@@ -127,6 +127,7 @@ def fetch_naver_shopping_ranking():
     logger.info("📊 카테고리별 랭킹 데이터 수집 시작...")
 
     for category_name, keyword in CATEGORY_KEYWORD_MAP.items():
+        logger.debug("카테고리 %s: 키워드 %s 수집 시작", category_name, keyword)
         shopping_data = get_naver_shopping_data(keyword)
         items = shopping_data.get("items", [])
 
@@ -186,8 +187,10 @@ def analyze_market(items, keyword, total_results, avg_search_ratio):
 def send_ranking_to_backend(data):
     url = f"{SPRING_BOOT_API}/market/ranking/receive"
     try:
-        requests.post(url, json=data, timeout=5).raise_for_status()
-        logger.info(f"✅ 랭킹 데이터 전송 완료 ({len(data)}건)")
+        logger.info("📤 랭킹 전송 시도 - URL=%s, 항목=%d", url, len(data))
+        response = requests.post(url, json=data, timeout=5)
+        response.raise_for_status()
+        logger.info("✅ 랭킹 데이터 전송 완료 - status=%s", response.status_code)
     except Exception as e:
         logger.error(f"❌ 랭킹 전송 실패 ({url}): {e}")
 
@@ -195,8 +198,9 @@ def send_analysis_to_backend(data):
     url = f"{SPRING_BOOT_API}/market/analysis"
     try:
         logger.info(f"📤 백엔드로 전송 시도: {url}")
-        requests.post(url, json=data, timeout=5).raise_for_status()
-        logger.info("🚀 분석 결과 저장 성공!")
+        response = requests.post(url, json=data, timeout=5)
+        response.raise_for_status()
+        logger.info("🚀 분석 결과 저장 성공 - status=%s", response.status_code)
     except Exception as e:
         logger.error(f"❌ 분석 결과 전송 실패: {e}")
 
@@ -231,6 +235,7 @@ if __name__ == "__main__":
             )
 
             messages = response.get("Messages", [])
+            logger.debug("SQS 폴링 결과 - 메시지 수: %d", len(messages))
 
             if not messages:
                 continue # 메시지 없으면 조용히 다시 대기
@@ -261,8 +266,9 @@ if __name__ == "__main__":
 
                     result = analyze_market(items, keyword, total, trend)
 
-                    # 백엔드 전송
+                    # 백엔드 전송Í
                     if result:
+                        logger.debug("분석 결과 payload: %s", result)
                         send_analysis_to_backend(result)
                     else:
                         logger.warning("⚠️ 분석 결과가 유효하지 않아 전송하지 않았습니다.")

@@ -23,8 +23,11 @@ public class MarketController {
     // 1. GET /market/list
     @GetMapping("/list")
     public ResponseEntity<?> getAnalysisList() {
+        log.info("GET /market/list 요청 처리 시작");
         try {
             List<MarketAnalysisResponse> list = marketService.findAllAnalysis();
+            int analysisSize = list != null ? list.size() : 0;
+            log.info("GET /market/list 응답 - 분석 건수: {}", analysisSize);
             return ResponseEntity.ok(list != null ? list : List.of());
         } catch (Exception e) {
             log.error("Error in /market/list: ", e);
@@ -38,6 +41,7 @@ public class MarketController {
         if (keyword == null || keyword.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
+        log.info("POST /market/sourcing/request - 키워드: {}", keyword);
         sourcingService.sendAnalysisRequest(keyword);
         return ResponseEntity.accepted().build();
     }
@@ -45,8 +49,11 @@ public class MarketController {
     // 3. GET /market/ranking (랭킹 조회)
     @GetMapping("/ranking")
     public ResponseEntity<?> getRanking() {
+        log.info("GET /market/ranking 요청 처리 시작");
         try {
             List<RankingItem> ranking = marketService.getNaverShoppingRanking();
+            int rankingSize = ranking != null ? ranking.size() : 0;
+            log.info("GET /market/ranking 응답 - 랭킹 항목 수: {}", rankingSize);
             return ResponseEntity.ok(ranking != null ? ranking : List.of());
         } catch (Exception e) {
             log.error("Error in /market/ranking: ", e);
@@ -57,6 +64,7 @@ public class MarketController {
     // 4. GET /market/ranking/category
     @GetMapping("/ranking/category")
     public ResponseEntity<?> getRankingByCategory(@RequestParam(required = false) String categoryLabel) {
+        log.info("GET /market/ranking/category 요청 - categoryLabel={}", categoryLabel);
         try {
             List<RankingItem> allRanking = marketService.getNaverShoppingRanking();
 
