@@ -1,5 +1,3 @@
-// com.smart.backend.dto.MarketAnalysisResponse.java
-
 package com.smart.backend.dto;
 
 import com.smart.backend.entity.MarketAnalysis;
@@ -24,7 +22,10 @@ public class MarketAnalysisResponse {
     private int lowestPrice;
     private String topItemName;
 
-    // ⬇️ 고도화 분석 지표 추가
+    // ⭐ 누락된 필드 추가: 상품 샘플 개수
+    private int sampleCount;
+
+    // ⬇️ 고도화 분석 지표
     private int totalListings;
     private String competitionLevel;
     private int searchVolumeRatio;
@@ -40,6 +41,8 @@ public class MarketAnalysisResponse {
                 .averagePrice(entity.getAveragePrice())
                 .lowestPrice(entity.getLowestPrice())
                 .topItemName(entity.getTopItemName())
+                // sampleCount 매핑 추가
+                .sampleCount(entity.getSampleCount())
                 .totalListings(entity.getTotalListings())
                 .competitionLevel(entity.getCompetitionLevel())
                 .searchVolumeRatio(entity.getSearchVolumeRatio())

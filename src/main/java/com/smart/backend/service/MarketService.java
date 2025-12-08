@@ -1,4 +1,3 @@
-// com.smart.backend.service.MarketService.java (전체 코드)
 package com.smart.backend.service;
 
 import com.smart.backend.dto.MarketAnalysisResponse;
@@ -31,17 +30,22 @@ public class MarketService {
                 .collect(Collectors.toList());
     }
 
-    // Python Worker 분석 결과 저장
+    // Python Worker 분석 결과 저장 (DTO -> Entity 변환 로직 추가 필요)
     @Transactional
-    public void saveAnalysisResult(MarketAnalysis result) {
-        analysisRepository.save(result);
+    public void saveAnalysisResult(MarketAnalysisResponse dto) {
+        // MarketAnalysisResponse DTO를 MarketAnalysis Entity로 변환하여 저장해야 합니다.
+        // DTO에 AnalysisDate가 없다면 현재 시간을 사용합니다.
+        MarketAnalysis entity = MarketAnalysis.from(dto);
+        entity.setAnalysisDate(LocalDateTime.now());
+
+        analysisRepository.save(entity);
     }
 
-    // Worker가 전송한 랭킹 결과를 DB에 저장 (신규)
+    // Worker가 전송한 랭킹 결과를 DB에 저장
     @Transactional
     public void saveNaverRanking(List<RankingItem> rankingList) {
 
-        // 🔥 한 방에 전체 삭제 (StaleObjectStateException 방지)
+        // 🔥 한 방에 전체 삭제 (기존 데이터 클린)
         rankingRepository.deleteAllInBatch();
 
         LocalDateTime now = LocalDateTime.now();
@@ -49,7 +53,7 @@ public class MarketService {
         List<NaverRanking> entities = rankingList.stream()
                 .map(item -> {
                     NaverRanking entity = new NaverRanking();
-                    entity.setRanking(item.getRank());       // DTO.rank → entity.ranking
+                    entity.setRanking(item.getRank());
                     entity.setKeyword(item.getKeyword());
                     entity.setSearchRatio(item.getSearchRatio());
                     entity.setSaveTime(now);
@@ -60,11 +64,12 @@ public class MarketService {
         rankingRepository.saveAll(entities);
     }
 
+    // DB에서 랭킹 조회
     public List<RankingItem> getNaverShoppingRanking() {
         return rankingRepository.findAllByOrderByRankingAsc()
                 .stream()
                 .map(e -> new RankingItem(
-                        e.getRanking(),      // 👈 필드명 ranking
+                        e.getRanking(),
                         e.getKeyword(),
                         e.getSearchRatio()
                 ))
