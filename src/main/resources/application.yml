@@ -20,17 +20,24 @@ spring:
       hibernate:
         format_sql: true
 
-  # 2. AWS SQS 설정 (새로 추가된 부분)
+  # 2. AWS SQS 설정 (기존 내용 유지)
   cloud:
     aws:
       region:
         static: us-east-1
-      # 👇 유효한 AWS 자격 증명을 직접 추가하는 섹션
       sqs:
         # SQS 대기열 주소
         endpoint: https://sqs.us-east-1.amazonaws.com/730335221432/smart-sourcing-queue
 
+  # ⭐️ 3. Amazon Redis 설정 (새로 추가된 부분)
+  data:
+    redis:
+      # 👇 Redis EC2 인스턴스의 프라이빗 IP 주소 반영
+      host: 10.0.1.245
+      port: 6379
+      # Redis 접속에 필요한 기타 설정 (필요 시 추가)
+      # password:
+      # timeout: 5000ms
+
 server:
   port: 8080
-
-
