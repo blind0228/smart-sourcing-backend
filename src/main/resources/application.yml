@@ -29,11 +29,11 @@ spring:
         # SQS 대기열 주소
         endpoint: https://sqs.us-east-1.amazonaws.com/730335221432/smart-sourcing-queue
 
-  # ⭐️ 3. Amazon Redis 설정 (새로 추가된 부분)
+  # ⭐️ 3. Amazon ElastiCache 설정 (최종 반영)
   data:
     redis:
-      # 👇 Redis EC2 인스턴스의 프라이빗 IP 주소 반영
-      host: 10.0.1.245
+      # 👇 EC2 IP (10.0.1.245) 대신 ElastiCache Serverless 엔드포인트 반영
+      host: smart-sourcing-cache-4woaoh.serverless.use1.cache.amazonaws.com
       port: 6379
       # Redis 접속에 필요한 기타 설정 (필요 시 추가)
       # password:
