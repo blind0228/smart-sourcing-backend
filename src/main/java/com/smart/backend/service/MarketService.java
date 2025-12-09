@@ -87,4 +87,5 @@ public class MarketService {
         log.debug("랭킹 조회 결과: {}건", rankingItems.size());
         return rankingItems;
     }
+
 }
