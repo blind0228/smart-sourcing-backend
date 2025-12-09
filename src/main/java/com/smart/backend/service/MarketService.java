@@ -8,6 +8,7 @@ import com.smart.backend.repository.MarketAnalysisRepository;
 import com.smart.backend.repository.NaverRankingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable; // 👈 [추가됨] Cacheable을 위한 import
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +26,7 @@ public class MarketService {
     private final NaverRankingRepository rankingRepository;
 
 
-    // React 상세 분석 목록 조회 (우측 표)
+    // React 상세 분석 목록 조회 (우측 표) - 이 목록은 자주 변하므로 캐싱하지 않습니다.
     public List<MarketAnalysisResponse> findAllAnalysis() {
         log.info("MarketService.findAllAnalysis 요청 처리");
         List<MarketAnalysisResponse> responses = analysisRepository.findAllByOrderByAnalysisDateDesc().stream()
@@ -46,7 +47,7 @@ public class MarketService {
         analysisRepository.save(entity);
     }
 
-    // Worker가 전송한 랭킹 결과를 DB에 저장
+    // Worker가 전송한 랭킹 결과를 DB에 저장 (이 메소드는 캐시를 갱신하거나 비우는 로직이 추가되어야 하지만, 일단 저장만 합니다)
     @Transactional
     public void saveNaverRanking(List<RankingItem> rankingList) {
 
@@ -71,9 +72,10 @@ public class MarketService {
         log.info("MarketService.saveNaverRanking - 저장 완료 ({}건)", entities.size());
     }
 
-    // DB에서 랭킹 조회
+    // DB에서 랭킹 조회 - ⭐️ 이 부분에 캐싱을 적용하여 RDS 부하를 줄입니다.
+    @Cacheable(value = "rankingCache", key = "'currentRankings'") // 👈 [추가됨]
     public List<RankingItem> getNaverShoppingRanking() {
-        log.info("MarketService.getNaverShoppingRanking 호출");
+        log.info("MarketService.getNaverShoppingRanking 호출 (DB 접근 또는 캐시 사용)");
         List<RankingItem> rankingItems = rankingRepository.findAllByOrderByRankingAsc()
                 .stream()
                 .map(e -> new RankingItem(
