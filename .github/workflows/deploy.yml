@@ -3,22 +3,17 @@ name: Backend Deploy to ECS (Production)
 on:
   push:
     branches:
-      - main # 혹은 백엔드 배포 브랜치
+      - main
 
 env:
-  AWS_REGION: us-east-1 # (한국 리전이라고 가정, 아니면 us-east-1 등 확인)
-  ECR_REPOSITORY: smartsourcing-backend # ⭐ 백엔드 ECR 리포지토리 이름
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: sourcing-api               # ECR 리포지토리 이름 (사용자 지정)
+  ECS_SERVICE: SourcingAPITask-service-v1zou2fu  # ECS 서비스 이름 (사용자 지정)
   ECS_CLUSTER: SmartSourcing-Cluster
+  CONTAINER_NAME: sourcing-api               # Task Definition 내부의 컨테이너 이름 (사용자 지정)
 
-  # ⭐ [중요] 아까 알려주신 Task Definition 이름 (버전 번호 제외)
-  ECS_TASK_DEFINITION_NAME: SourcingAPITask
-
-  # ⭐ [중요] Task Definition 안에서 설정한 '컨테이너 이름'
-  # (이 이름이 틀리면 이미지가 교체되지 않습니다. AWS 콘솔에서 확인 가능)
-  CONTAINER_NAME: sourcing-api-container
-
-  # ⭐ [중요] 배포할 ECS 서비스 이름
-  ECS_SERVICE: SmartSourcing-Backend-Service
+  # ⭐ 중요: Task Definition의 순수한 이름 (리비전 번호 제거)을 입력해야 합니다.
+  ECS_TASK_DEFINITION_NAME: SourcingAPITask-service # Task Def의 이름 부분만 입력 (사용자 지정)
 
 jobs:
   deploy:
@@ -30,75 +25,94 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ⚠️ JSON 처리를 위한 jq 설치
+      # ⚠️ 새로운 배포 로직을 위해 'jq' 설치는 필수입니다.
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Set up JDK 17 (Spring Boot 예시)
+      # 1. Java JDK 17 세팅 (Spring Boot 버전에 맞춰 JDK 설정)
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # (빌드 과정은 프로젝트에 맞게 수정하세요. Gradle 예시)
+      # 2. gradlew 실행 권한 부여 및 빌드
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
       - name: Build with Gradle
-        run: |
-          chmod +x gradlew
-          ./gradlew build -x test
+        run: ./gradlew clean build -x test
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # 필요한 경우
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ⭐ 디버깅을 위해 현재 인증 상태를 확인합니다. (권한 문제 확인용)
+      - name: Check AWS Caller Identity
+        run: aws sts get-caller-identity
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 6. Docker 이미지 빌드 및 푸시 (ApiDockerfile 사용)
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.sha }} # 커밋 SHA를 태그로 사용 (버전 관리 용이)
         run: |
-          # 👇 여기에 -f ApiDockerfile 옵션을 추가했습니다.
-          docker build -f ApiDockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          # ⭐ 디버깅을 위한 변수 출력
+          echo "ECR_REGISTRY: $ECR_REGISTRY"
+          echo "ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}"
+          
+          # ⭐ 수정 완료: 따옴표를 사용하여 변수가 비어있더라도 태그 형식이 깨지는 것을 방지하고, 
+          # 변수가 정확히 전달되었는지 확인합니다.
+          FULL_IMAGE_NAME="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
+          
+          docker build -f ./ApiDockerfile -t "$FULL_IMAGE_NAME" .
+          docker push "$FULL_IMAGE_NAME"
+          
+          # 다음 스텝에서 사용할 전체 이미지 URI를 출력합니다.
+          echo "image_uri=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
 
       # ==========================================================
-      # ⭐ 핵심 단계: 프론트엔드와 동일한 'jq' 방식 적용
+      # 7. ⭐ 핵심 단계: Task Definition 업데이트 및 ECS 서비스 배포 ⭐
       # ==========================================================
       - name: Deploy to ECS Fargate
         id: deploy-task
         env:
           IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
         run: |
-          # 1. 현재 Task Definition (TD) JSON을 다운로드 (최신 활성 버전 자동 선택)
+          # 1. 현재 Task Definition (TD) JSON을 다운로드 받습니다.
           aws ecs describe-task-definition \
             --task-definition ${{ env.ECS_TASK_DEFINITION_NAME }} \
             --query 'taskDefinition' \
             --region ${{ env.AWS_REGION }} \
             > task-definition.json
 
-          # 2. jq를 사용하여 이미지 URI 교체 및 불필요 필드 제거
-          # 주의: env.CONTAINER_NAME이 실제 Task Definition 내부 이름과 같아야 함
+          # 2. jq를 사용하여 JSON 파일에서 새 이미지 URI로 교체하고 불필요한 필드를 제거합니다.
           cat task-definition.json \
           | jq --arg IMG_URI "$IMAGE_URI" \
                --arg CONTAINER_NAME "${{ env.CONTAINER_NAME }}" \
                '(.containerDefinitions[] | select(.name == $CONTAINER_NAME).image) = $IMG_URI' \
-          | jq 'del(.status, .requiresAttributes, .revision, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt, .runtimePlatform, .taskDefinitionArn)' \
+          | jq 'del(.status, .requiresAttributes, .revision, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt, .runtimePlatform, .taskDefinitionArn, .requiresAttributes)' \
           > new-task-definition.json
           
-          echo "::notice file=new-task-definition.json::새 Task Definition 생성 완료"
+          echo "::notice file=new-task-definition.json::새 Task Definition을 등록합니다. 이미지: $IMAGE_URI"
 
-          # 3. 새로운 Task Definition 등록
+          # 3. 새로운 Task Definition을 AWS에 등록합니다.
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://new-task-definition.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --region ${{ env.AWS_REGION }} \
             --output text)
 
-          # 4. 서비스 업데이트
+          # 4. ECS 서비스에 새로운 Task Definition으로 업데이트 명령을 내립니다.
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
@@ -106,6 +120,7 @@ jobs:
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
+      # ▼▼▼▼▼▼▼ [마무리] 디스코드 알림 ▼▼▼▼▼▼▼
       - name: Discord Notification
         uses: sarisia/actions-status-discord@v1
         if: always()
@@ -115,6 +130,7 @@ jobs:
           description: |
             **상태:** ${{ job.status }}
             **실행자:** ${{ github.actor }}
-            **Task Def:** ${{ env.ECS_TASK_DEFINITION_NAME }}
+            **커밋:** ${{ github.event.head_commit.message }}
+            **Task Def ARN:** ${{ steps.deploy-task.outputs.NEW_TASK_DEF_ARN }}
           color: ${{ job.status == 'success' && '0x28a745' || '0xdc3545' }}
           username: GitHub Actions Bot
