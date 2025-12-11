@@ -111,7 +111,7 @@ jobs:
             --task-definition $NEW_TASK_DEF_ARN \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-
+      #
       # ▼▼▼▼▼▼▼ [마무리] 디스코드 알림 ▼▼▼▼▼▼▼
       - name: Discord Notification
         uses: sarisia/actions-status-discord@v1
