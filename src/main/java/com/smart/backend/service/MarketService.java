@@ -29,7 +29,7 @@ public class MarketService {
 
     // React 상세 분석 목록 조회 (우측 표) - 이 목록은 자주 변하므로 캐싱하지 않습니다.
     public List<MarketAnalysisResponse> findAllAnalysis() {
-        log.info("MarketService.findAllAnalysis 요청 처리");
+        // log.info("MarketService.findAllAnalysis 요청 처리");
         List<MarketAnalysisResponse> responses = analysisRepository.findAllByOrderByAnalysisDateDesc().stream()
                 .map(MarketAnalysisResponse::from)
                 .collect(Collectors.toList());
