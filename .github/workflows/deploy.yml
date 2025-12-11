@@ -6,7 +6,7 @@ on:
       - main # 혹은 백엔드 배포 브랜치
 
 env:
-  AWS_REGION: ap-northeast-2 # (한국 리전이라고 가정, 아니면 us-east-1 등 확인)
+  AWS_REGION: us-east-1 # (한국 리전이라고 가정, 아니면 us-east-1 등 확인)
   ECR_REPOSITORY: smartsourcing-backend # ⭐ 백엔드 ECR 리포지토리 이름
   ECS_CLUSTER: SmartSourcing-Cluster
 
