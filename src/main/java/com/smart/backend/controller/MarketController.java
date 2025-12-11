@@ -35,7 +35,7 @@ public class MarketController {
         }
     }
 
-    // 2. POST /market/sourcing/request (분석 요청)
+    // 2. POST /market/sourcing/request (운영 분석 요청) - 원본 유지
     @PostMapping("/sourcing/request")
     public ResponseEntity<Void> requestSourcing(@RequestParam String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
@@ -45,6 +45,21 @@ public class MarketController {
         sourcingService.sendAnalysisRequest(keyword);
         return ResponseEntity.accepted().build();
     }
+
+    // ⭐⭐ 새로 추가된 테스트용 API ⭐⭐
+    // 2-T. GET /market/sourcing/test (부하 테스트 전용 분석 요청)
+    // Locust에서 405 에러 없이 POST 대신 GET 요청으로 부하를 주기 위해 사용합니다.
+    @GetMapping("/sourcing/test")
+    public ResponseEntity<Void> requestSourcingTest(@RequestParam String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        // 운영 API와 동일한 SourcingService 로직을 호출합니다.
+        log.info("GET /market/sourcing/test - 부하 테스트 요청: {}", keyword);
+        sourcingService.sendAnalysisRequest(keyword);
+        return ResponseEntity.accepted().build();
+    }
+    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
 
     // 3. GET /market/ranking (랭킹 조회)
     @GetMapping("/ranking")
@@ -93,8 +108,7 @@ public class MarketController {
         }
     }
 
-    // 5. POST /market/analysis (🔥 405 오류 해결: 워커 분석 결과 수신)
-    // 워커가 분석 결과를 이 주소로 POST합니다.
+    // 5. POST /market/analysis (워커 분석 결과 수신)
     @PostMapping("/analysis")
     public ResponseEntity<Void> receiveAnalysisResult(@RequestBody MarketAnalysisResponse result) {
         log.info("🚀 Received analysis result for keyword: {}", result.getSearchKeyword());
@@ -110,8 +124,7 @@ public class MarketController {
         }
     }
 
-    // 6. POST /market/ranking/receive (🔥 워커 초기 랭킹 수신)
-    // 워커가 시작 시 랭킹 목록을 이 주소로 POST합니다.
+    // 6. POST /market/ranking/receive (워커 초기 랭킹 수신)
     @PostMapping("/ranking/receive")
     public ResponseEntity<Void> receiveRankingList(@RequestBody List<RankingItem> rankingList) {
         log.info("📊 Received {} ranking items from worker.", rankingList.size());
