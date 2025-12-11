@@ -4,7 +4,7 @@ spring:
 
   # 1. 데이터베이스 설정 (기존 내용 유지)
   datasource:
-    url: jdbc:mysql://database-1.cnwayga6k6j6.us-east-1.rds.amazonaws.com:3306/smart_sourcing_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://smart-sourcing-db-instance-1.c7gaa6a06po8.us-east-1.rds.amazonaws.com:3306/market?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: admin
     password: wjddnjswns
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -27,7 +27,7 @@ spring:
         static: us-east-1
       sqs:
         # SQS 대기열 주소
-        endpoint: https://sqs.us-east-1.amazonaws.com/730335221432/smart-sourcing-queue
+        endpoint: https://sqs.us-east-1.amazonaws.com/975050159570/sqs
 
   # ⭐️ 3. Amazon ElastiCache 설정 (최종 반영)
   data:

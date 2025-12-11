@@ -1,4 +1,4 @@
-name: Backend Deploy to ECS (Production)
+name: Backend ECR Push Only (No ECS Deployment)
 
 on:
   push:
@@ -8,15 +8,14 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: sourcing-api               # ECR 리포지토리 이름 (사용자 지정)
-  ECS_SERVICE: SourcingAPITask-service-v1zou2fu  # ECS 서비스 이름 (사용자 지정)
-  ECS_CLUSTER: SmartSourcing-Cluster
-  CONTAINER_NAME: sourcing-api               # Task Definition 내부의 컨테이너 이름 (사용자 지정)
+  ECS_SERVICE: SourcingAPITask-service-v1zou2fu  # 사용되지 않음
+  ECS_CLUSTER: SmartSourcing-Cluster          # 사용되지 않음
+  CONTAINER_NAME: sourcing-api               # 사용되지 않음
+  ECS_TASK_DEFINITION_NAME: SourcingAPITask # 사용되지 않음
 
-  # ⭐ 수정 완료: Task Definition의 순수한 이름 (리비전 번호 제거)을 입력해야 합니다.
-  ECS_TASK_DEFINITION_NAME: SourcingAPITask # 'service' 접미사 제거
 jobs:
   deploy:
-    name: Deploy Backend
+    name: Build and Push ECR
     runs-on: ubuntu-latest
     environment: production
 
@@ -24,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ⚠️ 새로운 배포 로직을 위해 'jq' 설치는 필수입니다.
+      # jq 설치는 이제 필수는 아니지만, 워크플로우 구조 유지를 위해 남겨둡니다.
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -69,67 +68,17 @@ jobs:
           echo "ECR_REGISTRY: $ECR_REGISTRY"
           echo "ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}"
           
-          # ⭐ 수정 완료: 따옴표를 사용하여 변수가 비어있더라도 태그 형식이 깨지는 것을 방지하고, 
-          # 변수가 정확히 전달되었는지 확인합니다.
           FULL_IMAGE_NAME="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
           
+          # ApiDockerfile을 사용하여 이미지 빌드
           docker build -f ./ApiDockerfile -t "$FULL_IMAGE_NAME" .
+          
+          # 빌드된 이미지를 ECR로 푸시
           docker push "$FULL_IMAGE_NAME"
           
           # 다음 스텝에서 사용할 전체 이미지 URI를 출력합니다.
           echo "image_uri=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
 
-      # ==========================================================
-      # 7. ⭐ 핵심 단계: Task Definition 업데이트 및 ECS 서비스 배포 ⭐
-      # ==========================================================
-      - name: Deploy to ECS Fargate
-        id: deploy-task
-        env:
-          IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
-        run: |
-          # 1. 현재 Task Definition (TD) JSON을 다운로드 받습니다.
-          aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_TASK_DEFINITION_NAME }} \
-            --query 'taskDefinition' \
-            --region ${{ env.AWS_REGION }} \
-            > task-definition.json
-
-          # 2. jq를 사용하여 JSON 파일에서 새 이미지 URI로 교체하고 불필요한 필드를 제거합니다.
-          cat task-definition.json \
-          | jq --arg IMG_URI "$IMAGE_URI" \
-               --arg CONTAINER_NAME "${{ env.CONTAINER_NAME }}" \
-               '(.containerDefinitions[] | select(.name == $CONTAINER_NAME).image) = $IMG_URI' \
-          | jq 'del(.status, .requiresAttributes, .revision, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt, .runtimePlatform, .taskDefinitionArn, .requiresAttributes)' \
-          > new-task-definition.json
-          
-          echo "::notice file=new-task-definition.json::새 Task Definition을 등록합니다. 이미지: $IMAGE_URI"
-
-          # 3. 새로운 Task Definition을 AWS에 등록합니다.
-          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://new-task-definition.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --region ${{ env.AWS_REGION }} \
-            --output text)
-
-          # 4. ECS 서비스에 새로운 Task Definition으로 업데이트 명령을 내립니다.
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --service ${{ env.ECS_SERVICE }} \
-            --task-definition $NEW_TASK_DEF_ARN \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-      # ▼▼▼▼▼▼▼ [마무리] 디스코드 알림 ▼▼▼▼▼▼▼
-      - name: Discord Notification
-        uses: sarisia/actions-status-discord@v1
-        if: always()
-        with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          title: "백엔드 배포 결과 - ${{ github.ref_name }}"
-          description: |
-            **상태:** ${{ job.status }}
-            **실행자:** ${{ github.actor }}
-            **커밋:** ${{ github.event.head_commit.message }}
-            **Task Def ARN:** ${{ steps.deploy-task.outputs.NEW_TASK_DEF_ARN }}
-          color: ${{ job.status == 'success' && '0x28a745' || '0xdc3545' }}
-          username: GitHub Actions Bot
+      # ▼▼▼▼▼ [ECS 배포 로직 및 알림 제거됨] ▼▼▼▼▼
+      - name: ECR Push Completed
+        run: echo "Backend image push to ECR completed successfully. Deployment to ECS was skipped as requested."
