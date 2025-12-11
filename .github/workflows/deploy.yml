@@ -12,9 +12,8 @@ env:
   ECS_CLUSTER: SmartSourcing-Cluster
   CONTAINER_NAME: sourcing-api               # Task Definition 내부의 컨테이너 이름 (사용자 지정)
 
-  # ⭐ 중요: Task Definition의 순수한 이름 (리비전 번호 제거)을 입력해야 합니다.
-  ECS_TASK_DEFINITION_NAME: SourcingAPITask-service # Task Def의 이름 부분만 입력 (사용자 지정)
-
+  # ⭐ 수정 완료: Task Definition의 순수한 이름 (리비전 번호 제거)을 입력해야 합니다.
+  ECS_TASK_DEFINITION_NAME: SourcingAPITask # 'service' 접미사 제거
 jobs:
   deploy:
     name: Deploy Backend
