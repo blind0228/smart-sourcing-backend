@@ -31,11 +31,11 @@ spring:
       # sqs:
       #   endpoint: https://sqs.us-east-1.amazonaws.com/975050159570/sqs
 
-  # 3. Redis 설정 (데모 안정성을 위해 일단 주석 처리)
-  # data:
-  #   redis:
-  #     host: smart-sourcing-cache-4woaoh.serverless.use1.cache.amazonaws.com
-  #     port: 6379
+   # 3. Redis 설정 (데모 안정성을 위해 일단 주석 처리)
+  data:
+     redis:
+       host: smart-redis-lus1hb.serverless.use1.cache.amazonaws.com
+       port: 6379
 
 server:
   port: 8080
