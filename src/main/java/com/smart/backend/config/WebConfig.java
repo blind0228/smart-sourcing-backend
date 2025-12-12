@@ -14,7 +14,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(
                         "http://localhost:3006",
-                        "http://smartsourcing-alb-new-409803492.us-east-1.elb.amazonaws.com"
+                        "http://SmartSourcing-ALB-407665338.us-east-1.elb.amazonaws.com"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")

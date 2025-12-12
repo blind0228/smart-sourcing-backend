@@ -2,9 +2,11 @@ spring:
   application:
     name: smart-backend
 
-  # 1. 데이터베이스 설정 (기존 내용 유지)
+  # 1. 데이터베이스 설정 (업데이트 완료)
   datasource:
-    url: jdbc:mysql://smart-sourcing-db-instance-1.c7gaa6a06po8.us-east-1.rds.amazonaws.com:3306/market?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    # 👇 새로 주신 RDS 엔드포인트 적용
+    # 주의: DB이름이 'market'이 맞나요? 아까 생성할 때 'smartsourcing'으로 했다면 그 이름으로 바꿔야 합니다.
+    url: jdbc:mysql://database-1.c7gaa6a06po8.us-east-1.rds.amazonaws.com:3306/smartsourcing?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: admin
     password: wjddnjswns
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -20,24 +22,20 @@ spring:
       hibernate:
         format_sql: true
 
-  # 2. AWS SQS 설정 (기존 내용 유지)
+  # 2. AWS 설정 (us-east-1 유지)
   cloud:
     aws:
       region:
         static: us-east-1
-      sqs:
-        # SQS 대기열 주소
-        endpoint: https://sqs.us-east-1.amazonaws.com/975050159570/sqs
+      # SQS는 데모 안정성을 위해 일단 주석 처리 (필요하면 주석 해제)
+      # sqs:
+      #   endpoint: https://sqs.us-east-1.amazonaws.com/975050159570/sqs
 
-  # ⭐️ 3. Amazon ElastiCache 설정 (최종 반영)
-  data:
-    redis:
-      # 👇 EC2 IP (10.0.1.245) 대신 ElastiCache Serverless 엔드포인트 반영
-      host: smart-sourcing-cache-4woaoh.serverless.use1.cache.amazonaws.com
-      port: 6379
-      # Redis 접속에 필요한 기타 설정 (필요 시 추가)
-      # password:
-      # timeout: 5000ms
+  # 3. Redis 설정 (데모 안정성을 위해 일단 주석 처리)
+  # data:
+  #   redis:
+  #     host: smart-sourcing-cache-4woaoh.serverless.use1.cache.amazonaws.com
+  #     port: 6379
 
 server:
   port: 8080
