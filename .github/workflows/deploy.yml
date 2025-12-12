@@ -1,4 +1,4 @@
-name: Backend ECR Push Only (No ECS Deployment)
+name: Backend Deploy to ECS (Production)
 
 on:
   push:
@@ -6,64 +6,134 @@ on:
       - main
 
 env:
-  # ⚠️ 사용자님이 제공한 명령어에 us-east-1로 되어 있어 수정했습니다.
-  # 만약 서울(ap-northeast-2)에 만드셨다면 이 부분을 꼭 수정하세요!
   AWS_REGION: us-east-1
+  # ✅ ECR 리포지토리 이름
   ECR_REPOSITORY: sourcing-api
+
+  # ▼▼▼ [수정됨] 사용자 지정 값 적용 ▼▼▼
+  ECS_TASK_DEFINITION_NAME: SourcingAPITask
+  CONTAINER_NAME: sourcing-api
+  ECS_SERVICE: backend-service
+
+  # ▼▼▼ [기존 값 유지] ▼▼▼
+  # 프론트엔드와 동일한 클러스터라고 가정합니다. 다르면 수정해주세요.
+  ECS_CLUSTER: SmartSourcing-Cluster
 
 jobs:
   deploy:
-    name: Build and Push ECR
+    name: Deploy Backend to ECS
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. JDK 17 설정
+      # 1. ECS 배포를 위한 jq 설치
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # 2. JDK 17 설정 (백엔드 빌드용)
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 2. Gradle 권한 부여 및 빌드 (JAR 파일 생성)
+      # 3. Gradle 빌드 (JAR 생성)
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build with Gradle
         run: ./gradlew clean bootJar -x test
 
-      # 3. AWS 인증 (러너랩은 Session Token이 필수입니다)
+      # 4. AWS 인증
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # ⭐️ 러너랩 필수
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 4. ECR 로그인
+      # 5. ECR 로그인
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 5. Docker 빌드 및 푸시 (제공해주신 AWS 명령어 로직 적용)
+      # 6. Docker 빌드 및 푸시
+      # ⚠️ 백엔드 전용: ApiDockerfile 사용
       - name: Build, tag, and push image to Amazon ECR
+        id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          # 제공하신 AWS 명령어와 동일한 동작을 수행합니다.
+          # (1) Docker 이미지 빌드 (-f ApiDockerfile 옵션 필수)
+          docker build -f ApiDockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           
-          # 1. 도커 이미지 빌드 (파일명이 Dockerfile 이라고 가정)
-          # 만약 파일명이 ApiDockerfile이면: docker build -f ApiDockerfile -t $ECR_REPOSITORY . 로 바꾸세요.
-          docker build -f ApiDockerfile -t $ECR_REPOSITORY .
-
-          # 2. 태그 지정 (latest)
-          docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-          # 3. ECR로 푸시
+          # (2) 'latest' 태그 추가
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          
+          # (3) ECR로 푸시
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           
-          echo "✅ ECR Push Success!"
-          echo "Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+          echo "::notice::이미지 푸시 완료: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      # 7. ECS Task Definition 업데이트 및 배포
+      - name: Deploy to ECS Fargate
+        id: deploy-task
+        env:
+          IMAGE_URI: ${{ steps.build-image.outputs.image_uri }}
+        run: |
+          echo "업데이트할 Task: ${{ env.ECS_TASK_DEFINITION_NAME }}"
+          echo "타겟 컨테이너: ${{ env.CONTAINER_NAME }}"
+
+          # 7-1. 현재 Task Definition 다운로드
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_DEFINITION_NAME }} \
+            --query 'taskDefinition' \
+            --region ${{ env.AWS_REGION }} \
+            > task-definition.json
+
+          # 7-2. jq로 이미지 URI 교체
+          cat task-definition.json \
+          | jq --arg IMG_URI "$IMAGE_URI" \
+               --arg CONTAINER_NAME "${{ env.CONTAINER_NAME }}" \
+               '(.containerDefinitions[] | select(.name == $CONTAINER_NAME).image) = $IMG_URI' \
+          | jq 'del(.status, .requiresAttributes, .revision, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt, .runtimePlatform, .taskDefinitionArn)' \
+          > new-task-definition.json
+          
+          # 7-3. 새로운 Task Definition 등록
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --region ${{ env.AWS_REGION }} \
+            --output text)
+          
+          echo "새로 등록된 Task Definition ARN: $NEW_TASK_DEF_ARN"
+
+          # 7-4. 서비스 업데이트 (배포 시작)
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --task-definition $NEW_TASK_DEF_ARN \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      # 8. 디스코드 알림
+      - name: Discord Notification
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "백엔드 배포 결과 - ${{ github.ref_name }}"
+          description: |
+            **상태:** ${{ job.status }}
+            **Task:** ${{ env.ECS_TASK_DEFINITION_NAME }}
+            **Container:** ${{ env.CONTAINER_NAME }}
+            **실행자:** ${{ github.actor }}
+          color: ${{ job.status == 'success' && '0x28a745' || '0xdc3545' }}
+          username: GitHub Actions Bot
