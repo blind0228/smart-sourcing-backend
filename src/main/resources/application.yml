@@ -28,8 +28,8 @@ spring:
       region:
         static: us-east-1
       # SQS는 데모 안정성을 위해 일단 주석 처리 (필요하면 주석 해제)
-      # sqs:
-      #   endpoint: https://sqs.us-east-1.amazonaws.com/975050159570/sqs
+      sqs:
+         endpoint: https://sqs.us-east-1.amazonaws.com/975050159570/sourcing-queue
 
    # 3. Redis 설정 (데모 안정성을 위해 일단 주석 처리)
   data:
